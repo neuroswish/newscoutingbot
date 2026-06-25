@@ -2,6 +2,13 @@
 
 Local demo CRM for importing agency contacts, researching named brand leads, preparing model partnership outreach, and tracking Gmail replies/follow-ups.
 
+## Stack
+
+- Next.js App Router
+- Tailwind CSS
+- Bun for package management, scripts, and tests
+- Supabase-ready backend helpers for the `newscouting` project
+
 ## Folder Boundary
 
 All app files and generated local state are intended to stay inside:
@@ -65,6 +72,17 @@ EXA_API_KEY="..."
 ```
 
 The `Lead Scout` tab searches professional profiles and public web sources through Exa. It lists public contact information when the returned research includes supporting sources, and prepares an editable outreach draft without sending anything.
+
+## Supabase Setup
+
+Create a hosted Supabase project named `newscouting`, then copy the project URL and publishable key into `.env`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
+```
+
+Supabase client helpers live in `src/lib/supabase`. Do not put service-role or secret keys in `NEXT_PUBLIC_*` variables.
 
 ## Prototype Workflow
 
