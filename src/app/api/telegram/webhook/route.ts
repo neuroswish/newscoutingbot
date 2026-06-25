@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   const update = (await request.json()) as TelegramUpdate;
-  const reply = buildTelegramReply(update);
+  const reply = await buildTelegramReply(update);
   if (!reply) return NextResponse.json({ ok: true, ignored: true });
 
   await sendTelegramMessage(reply);

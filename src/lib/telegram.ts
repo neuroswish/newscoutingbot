@@ -1,4 +1,6 @@
 import { analyzeSharedPost } from "./bot-intake";
+import { findLeadsWithExa } from "./exa";
+import type { LeadResult } from "./leads";
 
 type TelegramMessageEntity = {
   offset: number;
@@ -25,9 +27,19 @@ export type TelegramBotReply = {
   text: string;
 };
 
-const INSTAGRAM_URL_PATTERN = /https?:\/\/(?:www\.)?instagram\.com\/[^\s)]+/i;
+type TelegramReplyOptions = {
+  findLeads?: typeof findLeadsWithExa;
+};
 
-export function buildTelegramReply(update: TelegramUpdate): TelegramBotReply | null {
+const INSTAGRAM_URL_PATTERN = /https?:\/\/(?:www\.)?instagram\.com\/[^\s)]+/i;
+const BRAND_CONTACT_QUERY =
+  "Influencer Marketing Manager OR Social Media Manager OR Brand Partnerships Manager OR Brand Marketing Lead";
+const MAX_TELEGRAM_LEADS = 4;
+
+export async function buildTelegramReply(
+  update: TelegramUpdate,
+  options: TelegramReplyOptions = {}
+): Promise<TelegramBotReply | null> {
   const message = update.message ?? update.edited_message;
   const chatId = message?.chat?.id;
   if (!message || chatId === undefined) return null;
@@ -46,20 +58,18 @@ export function buildTelegramReply(update: TelegramUpdate): TelegramBotReply | n
     postUrl: postUrl ?? "",
     caption: text,
   });
-  const topLead = result.leads[0];
-  const emailLabel = topLead?.email ? `${topLead.email} (${topLead.emailConfidence})` : "needs more research";
+  const leadPacket = await findBrandContactPacket(result.brand, options.findLeads ?? findLeadsWithExa);
 
   return {
     chatId,
-    text: [
-      result.replyText,
-      "",
-      `Brand: ${result.brand} (${result.confidence}% confidence)`,
-      topLead ? `Top lead: ${topLead.name}, ${topLead.title}` : "Top lead: none yet",
-      `Email: ${emailLabel}`,
-      "",
-      "Next: I queued this for human review before any outreach is sent.",
-    ].join("\n"),
+    text: formatLeadPacketReply({
+      brand: result.brand,
+      confidence: result.confidence,
+      draft: leadPacket.draft,
+      leads: leadPacket.leads,
+      mode: leadPacket.mode,
+      searchNote: leadPacket.searchNote,
+    }),
   };
 }
 
@@ -98,4 +108,129 @@ function extractInstagramUrl(text: string, entities: TelegramMessageEntity[]) {
   }
 
   return text.match(INSTAGRAM_URL_PATTERN)?.[0] ?? null;
+}
+
+type TelegramLead = {
+  name: string;
+  title: string;
+  company: string;
+  email: string | null;
+  emailLabel: string;
+  notes: string;
+  source: string;
+};
+
+type LeadPacket = {
+  draft: { subject: string; body: string };
+  leads: TelegramLead[];
+  mode: "live" | "no-results" | "unavailable";
+  searchNote: string;
+};
+
+async function findBrandContactPacket(
+  brand: string,
+  findLeads: typeof findLeadsWithExa
+): Promise<LeadPacket> {
+  try {
+    const liveLeads = await findLeads(brand, BRAND_CONTACT_QUERY);
+    const leads = normalizeLiveTelegramLeads(liveLeads);
+    if (leads.length) {
+      return {
+        draft: createTelegramPartnershipDraft(brand, leads[0]),
+        leads,
+        mode: "live",
+        searchNote: "Searched public web sources for marketing/social partnership contacts.",
+      };
+    }
+    return {
+      draft: createTelegramPartnershipDraft(brand),
+      leads: [],
+      mode: "no-results",
+      searchNote:
+        "I searched public web sources but did not find strong named marketing/social contacts with grounded evidence yet.",
+    };
+  } catch (error) {
+    console.error("Telegram lead search failed.", error);
+    return {
+      draft: createTelegramPartnershipDraft(brand),
+      leads: [],
+      mode: "unavailable",
+      searchNote: "Live web search was unavailable, so I did not include unverified contacts or guessed emails.",
+    };
+  }
+}
+
+function normalizeLiveTelegramLeads(leads: LeadResult[]): TelegramLead[] {
+  return [...leads]
+    .sort((a, b) => Number(Boolean(b.emails.length)) - Number(Boolean(a.emails.length)))
+    .slice(0, MAX_TELEGRAM_LEADS)
+    .map((lead) => ({
+      company: lead.company,
+      email: lead.emails[0] ?? null,
+      emailLabel: lead.emails[0] ? "Publicly listed" : "No public email found",
+      name: lead.name,
+      notes: lead.notes ?? "Role appears relevant for brand, social, creator, or partnership outreach.",
+      source: lead.sources[0]?.title ?? lead.linkedinUrl ?? "Public web result",
+      title: lead.title,
+    }));
+}
+
+function formatLeadPacketReply({
+  brand,
+  confidence,
+  draft,
+  leads,
+  mode,
+  searchNote,
+}: {
+  brand: string;
+  confidence: number;
+  draft: { subject: string; body: string };
+  leads: TelegramLead[];
+  mode: LeadPacket["mode"];
+  searchNote: string;
+}) {
+  const leadLines = leads.length
+    ? leads.flatMap((lead, index) => [
+        `${index + 1}. ${lead.name} — ${lead.title}`,
+        `   Email: ${lead.email ?? "not publicly listed"} (${lead.emailLabel})`,
+        `   Source: ${lead.source}`,
+      ])
+    : ["No strong contacts found yet."];
+
+  return [
+    `Brand identified: ${brand} (${confidence}% confidence)`,
+    "",
+    "Possible brand contacts:",
+    ...leadLines,
+    "",
+    searchNote,
+    "",
+    "Draft email:",
+    `Subject: ${draft.subject}`,
+    "",
+    draft.body,
+    "",
+    "Next: Review the contacts and email before sending.",
+  ].join("\n");
+}
+
+function createTelegramPartnershipDraft(brand: string, lead?: TelegramLead) {
+  const firstName = lead?.name.split(/\s+/)[0] || "there";
+  return {
+    subject: `Model partnership opportunities with ${brand}`,
+    body: [
+      `Hi ${firstName},`,
+      "",
+      `I'm Joe from New Scouting Management. I came across ${brand} and wanted to ask whether your team is exploring model partnerships for upcoming creator, campaign, or event needs.`,
+      "",
+      "We represent a focused roster of models and can send over a tight selection based on the briefs your team is prioritizing for the upcoming month or quarter.",
+      "",
+      "Are you the right person to speak with about partnership opportunities?",
+      "",
+      "Best,",
+      "Joe",
+      "New Scouting Management",
+    ].join("\n"),
+  };
 }
