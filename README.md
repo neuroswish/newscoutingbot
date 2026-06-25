@@ -8,6 +8,7 @@ Local demo CRM for importing agency contacts, researching named brand leads, pre
 - Tailwind CSS
 - Bun for package management, scripts, and tests
 - Supabase-ready backend helpers for the `newscouting` project
+- Bot intake prototype for Telegram/WhatsApp-shared Instagram posts
 
 ## Folder Boundary
 
@@ -88,9 +89,10 @@ Supabase client helpers live in `src/lib/supabase`. Do not put service-role or s
 
 The default `Outreach` tab is a product demo of the intended workflow:
 
-1. Enter a target brand.
-2. Review named marketing/social leads, source evidence, and email confidence.
-3. Queue reviewed outreach drafts.
-4. Monitor replies, non-replies, and follow-up due dates on the CRM board.
+1. Share or paste an Instagram post into the `Bot Intake` tab.
+2. Detect the brand from the shared message/post metadata.
+3. Review named marketing/social leads, source evidence, and email confidence.
+4. Queue reviewed outreach drafts.
+5. Monitor replies, non-replies, and follow-up due dates on the CRM board.
 
 In production, inferred emails should be verified before sending, Gmail send scopes should require an explicit review step, and every outreach email should include the agency identity plus an opt-out line.
