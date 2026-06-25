@@ -8,7 +8,7 @@ Local demo CRM for importing agency contacts, researching named brand leads, pre
 - Tailwind CSS
 - Bun for package management, scripts, and tests
 - Supabase-ready backend helpers for the `newscouting` project
-- Bot intake prototype for Telegram/WhatsApp-shared Instagram posts
+- Telegram webhook for shared Instagram post intake
 
 ## Folder Boundary
 
@@ -85,11 +85,28 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
 
 Supabase client helpers live in `src/lib/supabase`. Do not put service-role or secret keys in `NEXT_PUBLIC_*` variables.
 
+## Telegram Bot Setup
+
+Create a bot with Telegram's `@BotFather`, then add the bot token and a random webhook secret to `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN="..."
+TELEGRAM_WEBHOOK_SECRET="..."
+```
+
+After deploying the app to a public HTTPS URL, register the webhook:
+
+```bash
+bun run telegram:set-webhook https://your-domain.example
+```
+
+The webhook route lives at `src/app/api/telegram/webhook/route.ts`. Telegram cannot send webhooks to `localhost`, so a public deployment is required for real messages.
+
 ## Prototype Workflow
 
 The default `Outreach` tab is a product demo of the intended workflow:
 
-1. Share or paste an Instagram post into the `Bot Intake` tab.
+1. Share or paste an Instagram post into the Telegram bot.
 2. Detect the brand from the shared message/post metadata.
 3. Review named marketing/social leads, source evidence, and email confidence.
 4. Queue reviewed outreach drafts.

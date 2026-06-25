@@ -10,7 +10,8 @@
     "test": "bun test",
     "db:setup": "bun run scripts/setup-db.ts && prisma generate",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "telegram:set-webhook": "bun run scripts/set-telegram-webhook.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

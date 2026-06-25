@@ -11,7 +11,6 @@ import {
   Loader2,
   Mail,
   MailPlus,
-  MessageSquareText,
   Search,
   Telescope,
   Upload,
@@ -19,7 +18,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ContactView, ParsedContactInput } from "@/lib/contacts";
-import { BotIntakeWorkspace } from "@/components/bot-intake-workspace";
 import { LeadScout } from "@/components/lead-scout";
 import { OutreachWorkspace } from "@/components/outreach-workspace";
 
@@ -48,7 +46,7 @@ type GmailMessage = {
 };
 
 export function ContactsDashboard({ initialContacts }: { initialContacts: ContactView[] }) {
-  const [activeView, setActiveView] = useState<"bot" | "outreach" | "contacts" | "leads">("bot");
+  const [activeView, setActiveView] = useState<"outreach" | "contacts" | "leads">("outreach");
   const [contacts, setContacts] = useState(initialContacts);
   const [selectedId, setSelectedId] = useState(initialContacts[0]?.id ?? "");
   const [search, setSearch] = useState("");
@@ -191,16 +189,6 @@ export function ContactsDashboard({ initialContacts }: { initialContacts: Contac
         <nav className="inline-flex w-fit max-w-full overflow-auto rounded-md border border-ink/10 bg-white p-1 shadow-panel">
           <button
             type="button"
-            onClick={() => setActiveView("bot")}
-            className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
-              activeView === "bot" ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
-            }`}
-          >
-            <MessageSquareText size={16} />
-            Bot Intake
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveView("outreach")}
             className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
               activeView === "outreach" ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
@@ -231,9 +219,7 @@ export function ContactsDashboard({ initialContacts }: { initialContacts: Contac
           </button>
         </nav>
 
-        {activeView === "bot" ? (
-          <BotIntakeWorkspace />
-        ) : activeView === "outreach" ? (
+        {activeView === "outreach" ? (
           <OutreachWorkspace />
         ) : activeView === "leads" ? (
           <LeadScout />
