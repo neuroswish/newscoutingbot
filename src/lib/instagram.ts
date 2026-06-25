@@ -2,7 +2,7 @@ export type InstagramBrandIdentity = {
   brand: string;
   confidence: number;
   displayName: string | null;
-  source: "instagram_metadata" | "shared_message_handle";
+  source: "instagram_metadata" | "instagram_embed" | "shared_message_handle";
   sourceLabel: string;
   username: string | null;
 };
@@ -22,11 +22,15 @@ export async function resolveInstagramBrand({
   text,
 }: ResolveInstagramBrandInput): Promise<InstagramBrandIdentity | null> {
   if (postUrl && INSTAGRAM_HOST_PATTERN.test(postUrl)) {
-    const metadataIdentity = await fetchInstagramMetadataIdentity(postUrl, fetcher).catch((error) => {
-      console.error("Unable to fetch Instagram metadata.", error);
-      return null;
-    });
-    if (metadataIdentity) return metadataIdentity;
+    for (const candidate of instagramMetadataUrls(postUrl)) {
+      const metadataIdentity = await fetchInstagramMetadataIdentity(candidate.url, candidate.source, fetcher).catch(
+        (error) => {
+          console.error("Unable to fetch Instagram metadata.", error);
+          return null;
+        }
+      );
+      if (metadataIdentity) return metadataIdentity;
+    }
   }
 
   const explicitHandle = extractInstagramHandle(text);
@@ -46,6 +50,7 @@ export async function resolveInstagramBrand({
 
 async function fetchInstagramMetadataIdentity(
   postUrl: string,
+  source: Extract<InstagramBrandIdentity["source"], "instagram_metadata" | "instagram_embed">,
   fetcher: typeof fetch
 ): Promise<InstagramBrandIdentity | null> {
   const response = await fetcher(postUrl, {
@@ -60,6 +65,8 @@ async function fetchInstagramMetadataIdentity(
 
   const html = await response.text();
   const metadataText = [
+    extractAccountLinkText(html),
+    extractJsonAccountText(html),
     extractMetaContent(html, "og:title"),
     extractMetaContent(html, "twitter:title"),
     extractTitle(html),
@@ -79,10 +86,26 @@ async function fetchInstagramMetadataIdentity(
     brand,
     confidence: displayName && username ? 96 : 90,
     displayName,
-    source: "instagram_metadata",
-    sourceLabel: "Official Instagram page metadata",
+    source,
+    sourceLabel:
+      source === "instagram_embed" ? "Official Instagram embed account metadata" : "Official Instagram page metadata",
     username,
   };
+}
+
+function instagramMetadataUrls(postUrl: string) {
+  const urls: Array<{ source: Extract<InstagramBrandIdentity["source"], "instagram_metadata" | "instagram_embed">; url: string }> = [
+    { source: "instagram_metadata", url: postUrl },
+  ];
+  const embedUrl = toInstagramEmbedUrl(postUrl);
+  if (embedUrl) urls.push({ source: "instagram_embed", url: embedUrl });
+  return urls;
+}
+
+function toInstagramEmbedUrl(postUrl: string) {
+  const match = postUrl.match(/instagram\.com\/(p|reel|tv)\/([^/?#]+)/i);
+  if (!match) return null;
+  return `https://www.instagram.com/${match[1].toLowerCase()}/${match[2]}/embed/captioned/`;
 }
 
 function extractDisplayName(text: string, username: string | null) {
@@ -111,6 +134,30 @@ function extractDisplayName(text: string, username: string | null) {
   return null;
 }
 
+function extractAccountLinkText(html: string) {
+  const linkPattern = /<a\b[^>]*href=["']\/([a-z0-9_.]{2,30})\/["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const matches = Array.from(html.matchAll(linkPattern));
+  const account = matches.find((match) => isLikelyAccountHandle(match[1]) && stripTags(match[2]));
+  if (!account) return "";
+
+  const username = normalizeHandle(account[1]);
+  const label = decodeHtml(stripTags(account[2]));
+  const displayName = cleanDisplayName(label);
+  return displayName ? `${displayName} (@${username}) on Instagram` : `@${username}`;
+}
+
+function extractJsonAccountText(html: string) {
+  const username =
+    readJsonString(html, "ownerUsername") ||
+    readJsonString(html, "username") ||
+    readJsonString(html, "owner_username");
+  if (!username || !isLikelyAccountHandle(username)) return "";
+
+  const displayName = readJsonString(html, "full_name") || readJsonString(html, "fullName") || readJsonString(html, "name");
+  const cleanName = displayName ? cleanDisplayName(decodeHtml(displayName)) : null;
+  return cleanName ? `${cleanName} (@${normalizeHandle(username)}) on Instagram` : `@${normalizeHandle(username)}`;
+}
+
 function cleanDisplayName(value: string) {
   const cleaned = value.replace(/^["'“”]+|["'“”]+$/g, "").replace(/\s+/g, " ").trim();
   if (!cleaned || /^instagram$/i.test(cleaned)) return null;
@@ -124,6 +171,26 @@ function extractInstagramHandle(value: string) {
 
 function normalizeHandle(handle: string) {
   return handle.toLowerCase().replace(/[^a-z0-9_.]/g, "");
+}
+
+function isLikelyAccountHandle(handle: string) {
+  const normalized = normalizeHandle(handle);
+  return (
+    normalized.length >= 2 &&
+    ![
+      "about",
+      "accounts",
+      "api",
+      "developer",
+      "direct",
+      "explore",
+      "legal",
+      "p",
+      "press",
+      "reel",
+      "tv",
+    ].includes(normalized)
+  );
 }
 
 function extractMetaContent(html: string, name: string) {
@@ -147,6 +214,15 @@ function decodeHtml(value: string) {
     .replaceAll("&#39;", "'")
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">");
+}
+
+function stripTags(value: string) {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function readJsonString(html: string, key: string) {
+  const pattern = new RegExp(`["']${escapeRegExp(key)}["']\\s*:\\s*["']([^"']+)["']`, "i");
+  return html.match(pattern)?.[1] ?? "";
 }
 
 function escapeRegExp(value: string) {
