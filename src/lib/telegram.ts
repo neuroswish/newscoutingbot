@@ -1,5 +1,5 @@
-import { analyzeSharedPost } from "./bot-intake";
 import { findLeadsWithExa } from "./exa";
+import { resolveInstagramBrand, type InstagramBrandIdentity } from "./instagram";
 import type { LeadResult } from "./leads";
 
 type TelegramMessageEntity = {
@@ -29,6 +29,7 @@ export type TelegramBotReply = {
 
 type TelegramReplyOptions = {
   findLeads?: typeof findLeadsWithExa;
+  resolveBrand?: typeof resolveInstagramBrand;
 };
 
 const INSTAGRAM_URL_PATTERN = /https?:\/\/(?:www\.)?instagram\.com\/[^\s)]+/i;
@@ -53,18 +54,26 @@ export async function buildTelegramReply(
   }
 
   const postUrl = extractInstagramUrl(text, [...(message.entities ?? []), ...(message.caption_entities ?? [])]);
-  const result = analyzeSharedPost({
-    platform: "telegram",
-    postUrl: postUrl ?? "",
-    caption: text,
-  });
-  const leadPacket = await findBrandContactPacket(result.brand, options.findLeads ?? findLeadsWithExa);
+  const brandIdentity = await (options.resolveBrand ?? resolveInstagramBrand)({ postUrl, text });
+  if (!brandIdentity) {
+    return {
+      chatId,
+      text: [
+        "I could not confidently identify the brand from official Instagram metadata.",
+        "",
+        "I will not guess from the post URL alone. Please resend the post using Instagram's share action, or include the Instagram username/display name shown on the post.",
+      ].join("\n"),
+    };
+  }
+
+  const leadPacket = await findBrandContactPacket(brandIdentity.brand, options.findLeads ?? findLeadsWithExa);
 
   return {
     chatId,
     text: formatLeadPacketReply({
-      brand: result.brand,
-      confidence: result.confidence,
+      brand: brandIdentity.brand,
+      brandIdentity,
+      confidence: brandIdentity.confidence,
       draft: leadPacket.draft,
       leads: leadPacket.leads,
       mode: leadPacket.mode,
@@ -177,6 +186,7 @@ function normalizeLiveTelegramLeads(leads: LeadResult[]): TelegramLead[] {
 
 function formatLeadPacketReply({
   brand,
+  brandIdentity,
   confidence,
   draft,
   leads,
@@ -184,6 +194,7 @@ function formatLeadPacketReply({
   searchNote,
 }: {
   brand: string;
+  brandIdentity: InstagramBrandIdentity;
   confidence: number;
   draft: { subject: string; body: string };
   leads: TelegramLead[];
@@ -200,6 +211,8 @@ function formatLeadPacketReply({
 
   return [
     `Brand identified: ${brand} (${confidence}% confidence)`,
+    brandIdentity.username ? `Instagram username: @${brandIdentity.username}` : null,
+    `Brand source: ${brandIdentity.sourceLabel}`,
     "",
     "Possible brand contacts:",
     ...leadLines,
@@ -212,7 +225,9 @@ function formatLeadPacketReply({
     draft.body,
     "",
     "Next: Review the contacts and email before sending.",
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 function createTelegramPartnershipDraft(brand: string, lead?: TelegramLead) {
