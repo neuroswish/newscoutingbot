@@ -64,12 +64,34 @@ describe("resolveInstagramBrand", () => {
   test("falls back only to an explicit username in the shared message", async () => {
     const identity = await resolveInstagramBrand({
       fetcher: mockFetch("<html><head><title>Instagram</title></head></html>"),
-      postUrl: "https://www.instagram.com/p/example/",
+      postUrl: null,
       text: "Shared from @asterathletics",
     });
 
     expect(identity?.brand).toBe("@asterathletics");
     expect(identity?.source).toBe("shared_message_handle");
+  });
+
+  test("does not use unrelated message mentions when an Instagram post URL is present", async () => {
+    const identity = await resolveInstagramBrand({
+      fetcher: mockFetch("<html><head><title>Instagram</title></head></html>"),
+      postUrl: "https://www.instagram.com/p/DZ7y_biDJhr/",
+      text: "https://www.instagram.com/p/DZ7y_biDJhr/ @popular",
+    });
+
+    expect(identity).toBeNull();
+  });
+
+  test("uses official canonical owner URL shape when available", async () => {
+    const identity = await resolveInstagramBrand({
+      fetcher: mockFetch("<html><head><title>Instagram</title></head></html>"),
+      postUrl: "https://www.instagram.com/eres/p/DZ7y_biDJhr/",
+      text: "https://www.instagram.com/eres/p/DZ7y_biDJhr/ @popular",
+    });
+
+    expect(identity?.brand).toBe("@eres");
+    expect(identity?.username).toBe("eres");
+    expect(identity?.source).toBe("instagram_owner_url");
   });
 
   test("uses the Instagram embed account link when the post page is stripped", async () => {

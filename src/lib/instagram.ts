@@ -2,7 +2,7 @@ export type InstagramBrandIdentity = {
   brand: string;
   confidence: number;
   displayName: string | null;
-  source: "instagram_metadata" | "instagram_embed" | "shared_message_handle";
+  source: "instagram_metadata" | "instagram_embed" | "instagram_owner_url" | "shared_message_handle";
   sourceLabel: string;
   username: string | null;
 };
@@ -41,6 +41,8 @@ export async function resolveInstagramBrand({
       );
       if (metadataIdentity) return metadataIdentity;
     }
+
+    return extractInstagramOwnerUrlIdentity(postUrl);
   }
 
   const explicitHandle = extractInstagramHandle(text);
@@ -109,9 +111,23 @@ function instagramMetadataUrls(postUrl: string) {
 }
 
 function toInstagramEmbedUrl(postUrl: string) {
-  const match = postUrl.match(/instagram\.com\/(p|reel|tv)\/([^/?#]+)/i);
+  const match = postUrl.match(/instagram\.com\/(?:[a-z0-9_.]{2,30}\/)?(p|reel|tv)\/([^/?#]+)/i);
   if (!match) return null;
   return `https://www.instagram.com/${match[1].toLowerCase()}/${match[2]}/embed/captioned/`;
+}
+
+function extractInstagramOwnerUrlIdentity(postUrl: string): InstagramBrandIdentity | null {
+  const match = postUrl.match(/instagram\.com\/([a-z0-9_.]{2,30})\/(?:p|reel|tv)\/[^/?#]+/i);
+  if (!match || !isLikelyAccountHandle(match[1])) return null;
+  const username = normalizeHandle(match[1]);
+  return {
+    brand: `@${username}`,
+    confidence: 88,
+    displayName: null,
+    source: "instagram_owner_url",
+    sourceLabel: "Official Instagram owner URL",
+    username,
+  };
 }
 
 function extractDisplayName(text: string, username: string | null) {

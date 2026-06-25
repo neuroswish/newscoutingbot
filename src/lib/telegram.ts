@@ -55,6 +55,12 @@ export async function buildTelegramReply(
 
   const postUrl = extractInstagramUrl(text, [...(message.entities ?? []), ...(message.caption_entities ?? [])]);
   const brandIdentity = await (options.resolveBrand ?? resolveInstagramBrand)({ postUrl, text });
+  console.log("Telegram brand resolution", {
+    hasInstagramUrl: Boolean(postUrl),
+    postUrlHost: postUrl ? safeUrlHost(postUrl) : null,
+    source: brandIdentity?.source ?? "none",
+    username: brandIdentity?.username ?? null,
+  });
   if (!brandIdentity) {
     return {
       chatId,
@@ -80,6 +86,15 @@ export async function buildTelegramReply(
       searchNote: leadPacket.searchNote,
     }),
   };
+}
+
+function safeUrlHost(value: string) {
+  try {
+    const url = new URL(value);
+    return url.hostname;
+  } catch {
+    return "invalid";
+  }
 }
 
 export async function sendTelegramMessage(reply: TelegramBotReply) {
