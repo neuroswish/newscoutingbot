@@ -12,3 +12,4 @@ dev.db-shm
 coverage/
 .DS_Store
 verification-*.png
+.vercel
