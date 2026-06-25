@@ -15,6 +15,16 @@ type ResolveInstagramBrandInput = {
 
 const INSTAGRAM_HANDLE_PATTERN = /@([a-z0-9_.]{2,30})/i;
 const INSTAGRAM_HOST_PATTERN = /^https?:\/\/(?:www\.)?instagram\.com\//i;
+const INSTAGRAM_NAVIGATION_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Upgrade-Insecure-Requests": "1",
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+};
 
 export async function resolveInstagramBrand({
   fetcher = fetch,
@@ -54,22 +64,18 @@ async function fetchInstagramMetadataIdentity(
   fetcher: typeof fetch
 ): Promise<InstagramBrandIdentity | null> {
   const response = await fetcher(postUrl, {
-    headers: {
-      "Accept-Language": "en-US,en;q=0.9",
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-    },
+    headers: INSTAGRAM_NAVIGATION_HEADERS,
     redirect: "follow",
   });
   if (!response.ok) return null;
 
   const html = await response.text();
   const metadataText = [
-    extractAccountLinkText(html),
-    extractJsonAccountText(html),
     extractMetaContent(html, "og:title"),
     extractMetaContent(html, "twitter:title"),
     extractTitle(html),
+    extractAccountLinkText(html),
+    extractJsonAccountText(html),
     extractMetaContent(html, "og:description"),
     extractMetaContent(html, "description"),
   ]
@@ -135,9 +141,10 @@ function extractDisplayName(text: string, username: string | null) {
 }
 
 function extractAccountLinkText(html: string) {
-  const linkPattern = /<a\b[^>]*href=["']\/([a-z0-9_.]{2,30})\/["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const linkPattern =
+    /<a\b[^>]*href=["'](?:https?:\/\/(?:www\.)?instagram\.com)?\/([a-z0-9_.]{2,30})(?:\/|\?)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
   const matches = Array.from(html.matchAll(linkPattern));
-  const account = matches.find((match) => isLikelyAccountHandle(match[1]) && stripTags(match[2]));
+  const account = matches.find((match) => isLikelyAccountHandle(match[1]));
   if (!account) return "";
 
   const username = normalizeHandle(account[1]);
@@ -147,13 +154,23 @@ function extractAccountLinkText(html: string) {
 }
 
 function extractJsonAccountText(html: string) {
+  const decodedHtml = decodeHtml(html);
   const username =
-    readJsonString(html, "ownerUsername") ||
-    readJsonString(html, "username") ||
-    readJsonString(html, "owner_username");
+    readJsonString(decodedHtml, "ownerUsername") ||
+    readJsonString(decodedHtml, "owner_username") ||
+    readJsonString(decodedHtml, "username") ||
+    readEscapedJsonString(decodedHtml, "ownerUsername") ||
+    readEscapedJsonString(decodedHtml, "owner_username") ||
+    readEscapedJsonString(decodedHtml, "username");
   if (!username || !isLikelyAccountHandle(username)) return "";
 
-  const displayName = readJsonString(html, "full_name") || readJsonString(html, "fullName") || readJsonString(html, "name");
+  const displayName =
+    readJsonString(decodedHtml, "full_name") ||
+    readJsonString(decodedHtml, "fullName") ||
+    readJsonString(decodedHtml, "name") ||
+    readEscapedJsonString(decodedHtml, "full_name") ||
+    readEscapedJsonString(decodedHtml, "fullName") ||
+    readEscapedJsonString(decodedHtml, "name");
   const cleanName = displayName ? cleanDisplayName(decodeHtml(displayName)) : null;
   return cleanName ? `${cleanName} (@${normalizeHandle(username)}) on Instagram` : `@${normalizeHandle(username)}`;
 }
@@ -208,6 +225,8 @@ function extractTitle(html: string) {
 
 function decodeHtml(value: string) {
   return value
+    .replace(/&#(\d+);?/g, (_, codepoint: string) => String.fromCodePoint(Number(codepoint)))
+    .replace(/&#x([0-9a-f]+);?/gi, (_, codepoint: string) => String.fromCodePoint(Number.parseInt(codepoint, 16)))
     .replaceAll("&amp;", "&")
     .replaceAll("&quot;", '"')
     .replaceAll("&#x27;", "'")
@@ -222,6 +241,11 @@ function stripTags(value: string) {
 
 function readJsonString(html: string, key: string) {
   const pattern = new RegExp(`["']${escapeRegExp(key)}["']\\s*:\\s*["']([^"']+)["']`, "i");
+  return html.match(pattern)?.[1] ?? "";
+}
+
+function readEscapedJsonString(html: string, key: string) {
+  const pattern = new RegExp(`\\\\["']${escapeRegExp(key)}\\\\["']\\s*:\\s*\\\\["']([^"'\\\\]+)\\\\["']`, "i");
   return html.match(pattern)?.[1] ?? "";
 }
 
