@@ -17,7 +17,9 @@ import { createOutreachDraft, type LeadResult } from "@/lib/leads";
 
 export function LeadScout() {
   const [company, setCompany] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
+  const [jobTitle, setJobTitle] = useState(
+    "Influencer Marketing Manager OR Social Media Manager OR Brand Partnerships Manager OR Brand Marketing Lead"
+  );
   const [leads, setLeads] = useState<LeadResult[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [status, setStatus] = useState("");
@@ -57,34 +59,41 @@ export function LeadScout() {
         <div className="rounded-lg border border-ink/10 bg-white p-4 shadow-panel">
           <form onSubmit={handleSearch} className="flex flex-col gap-3">
             <label htmlFor="lead-company" className="text-sm font-semibold">
-              Company
+              Brand
             </label>
             <input
               id="lead-company"
               value={company}
               onChange={(event) => setCompany(event.target.value)}
-              placeholder="e.g. Maison Lumi"
+              placeholder="e.g. Eres"
               required
               className="h-10 w-full rounded-md border border-ink/15 bg-fog px-3 text-sm outline-none ring-moss/30 focus:ring-4"
             />
             <label htmlFor="lead-title" className="text-sm font-semibold">
-              Job title
+              Role focus
             </label>
-            <input
+            <select
               id="lead-title"
               value={jobTitle}
               onChange={(event) => setJobTitle(event.target.value)}
-              placeholder="e.g. Casting Director"
               required
               className="h-10 w-full rounded-md border border-ink/15 bg-fog px-3 text-sm outline-none ring-moss/30 focus:ring-4"
-            />
+            >
+              <option value="Influencer Marketing Manager OR Social Media Manager OR Brand Partnerships Manager OR Brand Marketing Lead">
+                Social + partnerships
+              </option>
+              <option value="Influencer Marketing Manager">Influencer marketing</option>
+              <option value="Social Media Manager">Social media</option>
+              <option value="Brand Partnerships Manager">Brand partnerships</option>
+              <option value="Brand Marketing Lead">Brand marketing</option>
+            </select>
             <button
               type="submit"
               disabled={loading}
               className="mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-clay px-4 text-sm font-medium text-white transition hover:bg-clay/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-              Find contacts
+              Generate leads
             </button>
           </form>
           {status ? <p className="mt-3 text-sm text-ink/65">{status}</p> : null}

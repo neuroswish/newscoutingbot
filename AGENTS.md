@@ -106,7 +106,9 @@ Default behavior:
 - Before finishing, summarize changed files, risks, and validation run.
 
 ## UI Rules
+- Before substantial UI design or redesign work, read `docs/design-language.md` and apply the local `newscouting-design-language` skill guidance when available.
 - Match existing visual patterns: white surfaces, light borders, restrained shadows, simple typography, and compact operational layouts.
+- The visual language is adapted from the Ares repo: quiet white-first surfaces, zinc/neutral text, restrained borders/shadows, compact fixed navigation, and mobile-first ergonomics.
 - Avoid landing-page or marketing-page patterns unless explicitly requested.
 - Keep interface text direct and product-like.
 - Avoid one-off styling unless the file already uses that pattern.

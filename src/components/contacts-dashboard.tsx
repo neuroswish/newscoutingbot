@@ -2,16 +2,18 @@
 
 import Fuse from "fuse.js";
 import {
-  ContactRound,
+  Activity,
   Building2,
   Check,
   ChevronRight,
   Filter,
+  Home,
   Inbox,
   Loader2,
+  LogOut,
   Mail,
-  MailPlus,
   Search,
+  Settings,
   Telescope,
   Upload,
   UserRound,
@@ -19,7 +21,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { ContactView, ParsedContactInput } from "@/lib/contacts";
 import { LeadScout } from "@/components/lead-scout";
-import { OutreachWorkspace } from "@/components/outreach-workspace";
 
 type ImportPreview = {
   fileName: string;
@@ -45,8 +46,17 @@ type GmailMessage = {
   snippet: string;
 };
 
+type AppTab = "home" | "search" | "leadGen" | "profile";
+
+const tabItems: Array<{ id: AppTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "search", label: "Search", icon: Search },
+  { id: "leadGen", label: "Lead Gen", icon: Telescope },
+  { id: "profile", label: "Profile", icon: UserRound },
+];
+
 export function ContactsDashboard({ initialContacts }: { initialContacts: ContactView[] }) {
-  const [activeView, setActiveView] = useState<"outreach" | "contacts" | "leads">("outreach");
+  const [activeView, setActiveView] = useState<AppTab>("home");
   const [contacts, setContacts] = useState(initialContacts);
   const [selectedId, setSelectedId] = useState(initialContacts[0]?.id ?? "");
   const [search, setSearch] = useState("");
@@ -93,6 +103,25 @@ export function ContactsDashboard({ initialContacts }: { initialContacts: Contac
       .then(setGmailStatus)
       .catch(() => setGmailStatus({ connected: false, email: null }));
   }, []);
+
+  useEffect(() => {
+    const updateMobileTabOffset = () => {
+      const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+      const visualOffsetTop = window.visualViewport?.offsetTop ?? 0;
+      const offset = Math.max(0, window.innerHeight - visualHeight - visualOffsetTop);
+      document.documentElement.style.setProperty("--mobile-tab-offset", `${offset}px`);
+    };
+
+    updateMobileTabOffset();
+    window.addEventListener("resize", updateMobileTabOffset);
+    window.visualViewport?.addEventListener("resize", updateMobileTabOffset);
+    window.visualViewport?.addEventListener("scroll", updateMobileTabOffset);
+    return () => {
+      window.removeEventListener("resize", updateMobileTabOffset);
+      window.visualViewport?.removeEventListener("resize", updateMobileTabOffset);
+      window.visualViewport?.removeEventListener("scroll", updateMobileTabOffset);
+    };
+  }, [activeView]);
 
   async function handlePreviewUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -170,59 +199,49 @@ export function ContactsDashboard({ initialContacts }: { initialContacts: Contac
   }
 
   return (
-    <main className="min-h-screen px-5 py-5 text-ink md:px-8">
+    <>
+    <main className="min-h-screen px-4 pb-28 pt-4 text-ink sm:px-5 md:px-8 md:pb-8 md:pt-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-end">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-clay">New Scouting Management</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal md:text-4xl">Agency CRM</h1>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-clay">New Scouting</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-normal md:text-4xl">Joe's agent console</h1>
           </div>
           <a
             href="/api/gmail/connect"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white shadow-panel transition hover:bg-ink/88"
+            className="hidden h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white shadow-panel transition hover:bg-ink/88 md:inline-flex"
           >
             <Mail size={16} />
             {gmailStatus.connected ? `Gmail: ${gmailStatus.email ?? "connected"}` : "Connect Gmail"}
           </a>
         </header>
 
-        <nav className="inline-flex w-fit max-w-full overflow-auto rounded-md border border-ink/10 bg-white p-1 shadow-panel">
-          <button
-            type="button"
-            onClick={() => setActiveView("outreach")}
-            className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
-              activeView === "outreach" ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
-            }`}
-          >
-            <MailPlus size={16} />
-            Outreach
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveView("contacts")}
-            className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
-              activeView === "contacts" ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
-            }`}
-          >
-            <ContactRound size={16} />
-            Contacts
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveView("leads")}
-            className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
-              activeView === "leads" ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
-            }`}
-          >
-            <Telescope size={16} />
-            Lead Scout
-          </button>
+        <nav className="hidden w-fit max-w-full overflow-auto rounded-md border border-ink/10 bg-white p-1 shadow-panel md:inline-flex">
+          {tabItems.map((item) => {
+            const Icon = item.icon;
+            const active = activeView === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveView(item.id)}
+                className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-medium transition ${
+                  active ? "bg-ink text-white" : "text-ink/65 hover:bg-fog"
+                }`}
+              >
+                <Icon size={16} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
-        {activeView === "outreach" ? (
-          <OutreachWorkspace />
-        ) : activeView === "leads" ? (
+        {activeView === "home" ? (
+          <HomeOverview contacts={contacts} gmailStatus={gmailStatus} onOpenTab={setActiveView} />
+        ) : activeView === "leadGen" ? (
           <LeadScout />
+        ) : activeView === "profile" ? (
+          <ProfilePanel contacts={contacts} gmailStatus={gmailStatus} />
         ) : (
         <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="flex flex-col gap-4">
@@ -361,6 +380,231 @@ export function ContactsDashboard({ initialContacts }: { initialContacts: Contac
         )}
       </div>
     </main>
+    <nav
+      className="fixed inset-x-0 z-[100] isolate border-t border-ink/10 bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(20,20,17,0.08)] md:hidden"
+      aria-label="Primary"
+      style={{ bottom: "var(--mobile-tab-offset, 0px)" }}
+    >
+      <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+        {tabItems.map((item) => {
+          const Icon = item.icon;
+          const active = activeView === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onPointerDown={() => setActiveView(item.id)}
+              onClick={() => setActiveView(item.id)}
+              className={`flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold transition ${
+                active ? "bg-ink text-white" : "text-ink/55 hover:bg-fog hover:text-ink"
+              }`}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={19} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+    </>
+  );
+}
+
+function HomeOverview({
+  contacts,
+  gmailStatus,
+  onOpenTab,
+}: {
+  contacts: ContactView[];
+  gmailStatus: GmailStatus;
+  onOpenTab: (tab: AppTab) => void;
+}) {
+  const contactsWithEmail = contacts.filter((contact) => contact.emails.length).length;
+  const companies = Array.from(
+    new Set(contacts.map((contact) => contact.company).filter((company): company is string => Boolean(company)))
+  ).sort((a, b) => a.localeCompare(b));
+  const topCompanies = companies.slice(0, 4);
+  const needsEmail = Math.max(0, contacts.length - contactsWithEmail);
+  const recentActivity = [
+    "Instagram post intake is ready for brand lookup",
+    "Lead research returns named marketing and social contacts",
+    gmailStatus.connected ? "Gmail is connected for reply checks" : "Gmail needs to be connected before reply tracking",
+  ];
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-panel">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink/50">New leads</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-normal">Find brand contacts</h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ink text-white">
+            <Telescope size={19} />
+          </span>
+        </div>
+        <p className="mt-4 max-w-xl text-sm leading-6 text-ink/62">
+          Start with a brand Joe wants to work with and generate a short list of marketing, social, and partnership leads.
+        </p>
+        <button
+          type="button"
+          onClick={() => onOpenTab("leadGen")}
+          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-ink/88"
+        >
+          <Telescope size={16} />
+          Generate leads
+        </button>
+      </article>
+
+      <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-panel">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink/50">Outreach queue</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-normal">{contactsWithEmail} reachable</h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-steel/10 text-steel">
+            <Mail size={19} />
+          </span>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-ink/62">
+          {needsEmail > 0
+            ? `${needsEmail} contacts still need emails before they can be used for outreach.`
+            : "Every imported contact has at least one email ready for outreach review."}
+        </p>
+        <button
+          type="button"
+          onClick={() => onOpenTab("search")}
+          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-fog px-4 text-sm font-medium text-ink/72 transition hover:bg-white"
+        >
+          <Search size={16} />
+          Search contacts
+        </button>
+      </article>
+
+      <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-panel">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink/50">Campaign targets</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-normal">
+              {companies.length ? `${companies.length} brands` : "Needs brand data"}
+            </h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-moss/10 text-moss">
+            <Building2 size={19} />
+          </span>
+        </div>
+        <div className="mt-4 flex min-h-16 flex-wrap gap-2">
+          {topCompanies.length ? (
+            topCompanies.map((company) => (
+              <span key={company} className="rounded-full border border-ink/10 bg-fog px-3 py-1 text-sm text-ink/68">
+                {company}
+              </span>
+            ))
+          ) : (
+            <p className="text-sm leading-6 text-ink/62">
+              Add brand or company names to contacts so Joe can group outreach around real campaign targets.
+            </p>
+          )}
+        </div>
+      </article>
+
+      <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-panel">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-ink/50">Agent status</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-normal">{gmailStatus.connected ? "Ready" : "Setup needed"}</h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-clay/10 text-clay">
+            <Activity size={19} />
+          </span>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {recentActivity.map((item) => (
+            <div key={item} className="flex gap-3 text-sm leading-6 text-ink/64">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-clay" />
+              <span className="min-w-0">{item}</span>
+            </div>
+          ))}
+        </div>
+        {!gmailStatus.connected ? (
+          <button
+            type="button"
+            onClick={() => onOpenTab("profile")}
+            className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-fog px-4 text-sm font-medium text-ink/72 transition hover:bg-white"
+          >
+            <Settings size={16} />
+            Finish setup
+          </button>
+        ) : null}
+      </article>
+    </section>
+  );
+}
+
+function ProfilePanel({ contacts, gmailStatus }: { contacts: ContactView[]; gmailStatus: GmailStatus }) {
+  return (
+    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-panel">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-ink text-white">
+            <UserRound size={25} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium uppercase tracking-[0.14em] text-clay">Profile</p>
+            <h2 className="mt-2 text-2xl font-semibold">Joe at New Scouting</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/62">
+              Configure the integrations and account settings that power the bot and outreach workflow.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <SettingsRow label="Contacts imported" value={String(contacts.length)} />
+          <SettingsRow label="Gmail account" value={gmailStatus.connected ? gmailStatus.email ?? "Connected" : "Not connected"} />
+          <SettingsRow label="Review before send" value="Enabled" />
+          <SettingsRow label="Telegram intake" value="Webhook configured" />
+        </div>
+      </div>
+
+      <aside className="flex flex-col gap-4">
+        <section className="rounded-lg border border-ink/10 bg-white p-4 shadow-panel">
+          <h3 className="text-lg font-semibold">Settings</h3>
+          <div className="mt-4 grid gap-2">
+            <a
+              href="/api/gmail/connect"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-ink/88"
+            >
+              <Mail size={16} />
+              {gmailStatus.connected ? "Reconnect Gmail" : "Connect Gmail"}
+            </a>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-fog px-4 text-sm font-medium text-ink/70"
+            >
+              <Settings size={16} />
+              Notification settings
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-clay/20 bg-clay/10 px-4 text-sm font-medium text-clay"
+            >
+              <LogOut size={16} />
+              Log out
+            </button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  );
+}
+
+function SettingsRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-ink/10 bg-fog p-3">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-ink/45">{label}</p>
+      <p className="mt-2 min-h-5 break-words text-sm font-semibold text-ink/80">{value}</p>
+    </div>
   );
 }
 
